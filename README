@@ -1,0 +1,41 @@
+Devel-DTrace-Provider version 0.01
+==================================
+
+This is a Perl port of "ruby-dtrace", bindings for the probe and 
+consumer APIs of DTrace. 
+
+What works:
+
+  * Declarative provider construction
+  * DOF generation and loading
+  * Firing probes directly, with arguments
+  * Probes exported into application code
+  * Is-enabled checks
+
+Tests are under development: DTrace requires root (or other elevated
+privileges) so testing live probes is troublesome. Basic tests should
+be working.
+
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+DEPENDENCIES
+
+Requires DTrace support on your platform, and initially is only 
+targetting i386. 
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2008 by Chris Andrews
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8.8 or,
+at your option, any later version of Perl 5 you may have available.
+
+
