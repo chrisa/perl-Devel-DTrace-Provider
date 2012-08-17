@@ -1,22 +1,13 @@
-Devel-DTrace-Provider version 0.01
+Devel-DTrace-Provider version 1.00
 ==================================
 
-This is a Perl port of "ruby-dtrace", bindings for the probe and 
-consumer APIs of DTrace. 
+This is Perl bindings for libusdt, which allows you to create DTrace
+providers at runtime, from your Perl code.
 
-What works:
+See: https://github.com/chrisa/libusdt
 
-  * Declarative provider construction
-  * DOF generation and loading
-  * Firing probes directly, with arguments
-  * Probes exported into application code
-  * Is-enabled checks
-
-Tests are under development: DTrace requires root (or other elevated
-privileges) so testing live probes is troublesome. Basic tests should
-be working.
-
-INSTALLATION
+Installation
+------------
 
 To install this module type the following:
 
@@ -25,14 +16,26 @@ To install this module type the following:
    make test
    make install
 
-DEPENDENCIES
+Example Usage
+-------------
 
-Requires DTrace support on your platform, and initially is only 
-targetting i386. 
+  use Devel::DTrace::Provider;
 
-COPYRIGHT AND LICENCE
+  my $provider = Devel::DTrace::Provider->new('test0', 'test1module');
+  my $probe = $provider->probe('test', 'func', 'string', 'integer');
+  $provider->enable;
+  $probe->fire('foo', 42);
 
-Copyright (C) 2008 by Chris Andrews
+Platform Requirements
+---------------------
+
+Requires a libusdt-supported platform. Currently this is
+Solaris/Illumos and Mac OS X, i386 and x86_64. 
+
+Copyright and Licence
+---------------------
+
+Copyright (C) 2008-2012, Chris Andrews <chris@nodnol.org>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,
