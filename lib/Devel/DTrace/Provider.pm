@@ -38,35 +38,19 @@ Devel::DTrace::Provider - Create DTrace providers for Perl programs.
 
 =head1 SYNOPSIS
 
-  # Create a provider in OO style:
+  # Create a provider and fire a probe:
 
   use Devel::DTrace::Provider;
     
   my $provider = Devel::DTrace::Provider->new('provider1', 'perl');
-  $provider->probe('probe1', 'string');
-  my $probes = $provider->enable;
+  my $probe = $provider->probe('probe1', 'string');
 
-  $probes->{probe1}->fire('foo');
-
-  # or, with the Builder module, declaratively:
-
-  use Devel::DTrace::Provider::Builder;
-
-  provider 'provider1' => as {
-    probe 'probe1', 'string';
-  };
-
-  probe1 { shift->fire('foo') } if probe1_is_enabled;
+  $probe->fire('foo');
 
 =head1 DESCRIPTION
 
 This module lets you create DTrace providers for your Perl programs,
 from Perl - no further native code is required. 
-
-If you want to create providers to form part of a larger application,
-in a more declarative style, see Devel::DTrace::Provider::Builder --
-this module provides the raw API, and is more suitable for small
-scripts.
 
 When you create a provider and call its C<enable> method, the following
 happens:
@@ -81,15 +65,7 @@ be fired from Perl code.
 Your program does not need to run as root to create providers.
 
 Providers created by this module should survive fork(), and become
-visible from both parent and child processes separately.  Redefining a
-provider should be possible within the same process. These two
-features permit providers to be created by mod_perl applications. 
-
-This module may be installed on systems which do not support DTrace:
-in this case, no native code is built, and providers created by the
-Builder module will be stubbed out such that there is zero runtime
-overhead. This can be useful for applications which should run on
-multiple platforms while still having the probe code embedded. 
+visible from both parent and child processes separately. 
 
 =head2 Using Perl providers
 
@@ -142,21 +118,9 @@ for full details:
 
 =head2 Platform support
 
-This release supports DTrace on both Solaris and Mac OS X Leopard, but
-only on i386, 32 bit. 
+This module is supported only on platforms where libusdt is available. 
 
-Support for Solaris on SPARC, OS X on PowerPC and 64 bit processes
-will follow.
-
-=head2 Testing
-
-The tests in the distribution do not actually verify the probes are
-created or fired, because DTrace requires additional privileges. It's
-also complex to start an external dtrace(1) to perform the testing. 
-
-However, they do verify that it's possible to run the provider
-creation code. I plan to add optional tests which do full testing if
-run with additional privileges.
+See: https://github.com/chrisa/libusdt
 
 =head1 METHODS
 
@@ -172,7 +136,9 @@ Returns an empty provider object.
 
 Adds a probe to the provider, named $probe_name. Arguments are set up
 with the types specified. Supported types are 'string' (char *) and
-'integer' (int). A maximum of eight arguments is supported. 
+'integer' (int). A maximum of 32 arguments is supported. 
+
+Returns a probe object.
 
 =head2 enable()
 
@@ -180,14 +146,11 @@ Actually adds the provider to the running system. Croaks if there was
 an error inserting the provider into the kernel, or if memory could
 not be allocated for the tracepoint functions.
 
-Returns a hash of probe "stubs", Devel::DTrace::Probe objects. 
-
 =head1 DEVELOPMENT
 
 The source to Devel::DTrace::Provider is in github:
 
-  http://github.com/chrisa/perl-dtrace/tree/master/Devel-DTrace-Provider
-
+  https://github.com/chrisa/perl-Devel-DTrace-Provider
 
 =head1 AUTHOR
 
@@ -195,7 +158,7 @@ Chris Andrews <chris@nodnol.org>
 
 =head1 LICENCE AND COPYRIGHT
 
-Copyright (C) 2008, Chris Andrews <chris@nodnol.org>. All rights reserved. 
+Copyright (C) 2008-2012, Chris Andrews <chris@nodnol.org>. All rights reserved. 
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
