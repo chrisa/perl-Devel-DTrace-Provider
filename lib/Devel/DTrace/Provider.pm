@@ -44,6 +44,7 @@ Devel::DTrace::Provider - Create DTrace providers for Perl programs.
     
   my $provider = Devel::DTrace::Provider->new('provider1', 'perl');
   my $probe = $provider->probe('probe1', 'string');
+  $provider->enable;
 
   $probe->fire('foo');
 
