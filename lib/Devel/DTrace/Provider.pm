@@ -38,6 +38,10 @@ Devel::DTrace::Provider - Create DTrace providers for Perl programs.
 
 =head1 SYNOPSIS
 
+  # Listen for the probe we'll fire:
+
+  sudo dtrace -qZn 'provider1*::: { printf("%s:%s:%s:%s\n", probeprov, probemod, probefunc, probename) }'
+
   # Create a provider and fire a probe:
 
   use Devel::DTrace::Provider;
@@ -47,6 +51,12 @@ Devel::DTrace::Provider - Create DTrace providers for Perl programs.
   $provider->enable;
 
   $probe->fire('foo');
+
+  # DTrace output:
+
+  provider15949:perl:function:probe1
+
+  (5949 is the pid of the Perl process)
 
 =head1 DESCRIPTION
 
