@@ -6,7 +6,12 @@
 
 #include <usdt.h>
 
-typedef usdt_provider_t* Devel__DTrace__Provider;
+struct perl_dtrace_provider {
+        usdt_provider_t *provider;
+        HV *probes;
+};
+
+typedef struct perl_dtrace_provider* Devel__DTrace__Provider;
 typedef usdt_probedef_t* Devel__DTrace__Probe;
 
 char **
@@ -46,9 +51,15 @@ new(package, name, module)
         char *module;
 
         CODE:
-        RETVAL = usdt_create_provider(name, module);
+        RETVAL = malloc(sizeof(struct perl_dtrace_provider *));
         if (RETVAL == NULL)
                 Perl_croak(aTHX_ "Failed to allocate memory for provider: %s", strerror(errno));
+
+        RETVAL->provider = usdt_create_provider(name, module);
+        if (RETVAL->provider == NULL)
+                Perl_croak(aTHX_ "Failed to allocate memory for provider: %s", strerror(errno));
+
+        RETVAL->probes = newHV();
 
         OUTPUT:
         RETVAL
@@ -82,21 +93,54 @@ add_probe(self, name, function, perl_types)
         if ((RETVAL = usdt_create_probe(function, name, argc, types)) == NULL)
                 Perl_croak(aTHX_ "create probe failed");
 
-        if ((usdt_provider_add_probe(self, RETVAL) < 0))
-                Perl_croak(aTHX_ "add probe: %s", usdt_errstr(self));
+        if ((usdt_provider_add_probe(self->provider, RETVAL) < 0))
+                Perl_croak(aTHX_ "add probe: %s", usdt_errstr(self->provider));
 
-        OUTPUT:
-        RETVAL
+        ST(0) = sv_newmortal();
+        sv_setref_pv(ST(0), "Devel::DTrace::Probe", (void*)RETVAL);
 
-int
+        (void) hv_store(self->probes, name, strlen(name), SvREFCNT_inc((SV *)ST(0)), 0);
+
+void
+remove_probe(self, probe)
+        Devel::DTrace::Provider self
+        Devel::DTrace::Probe probe;
+
+        CODE:
+        (void) hv_delete(self->probes, probe->name, strlen(probe->name), G_DISCARD);
+
+        if (usdt_provider_remove_probe(self->provider, probe) < 0)
+                Perl_croak(aTHX_ "%s", usdt_errstr(self->provider));
+
+
+SV *
 enable(self)
         Devel::DTrace::Provider self
 
         CODE:
-        if (usdt_provider_enable(self) != 0)
-                Perl_croak(aTHX_ "%s", usdt_errstr(self));
+        if (usdt_provider_enable(self->provider) < 0)
+                Perl_croak(aTHX_ "%s", usdt_errstr(self->provider));
 
-        RETVAL = 1; /* XXX */
+        RETVAL = newRV_inc((SV *)self->probes);
+
+        OUTPUT:
+        RETVAL
+
+void
+disable(self)
+        Devel::DTrace::Provider self
+
+        CODE:
+        if (usdt_provider_disable(self->provider) < 0)
+                Perl_croak(aTHX_ "%s", usdt_errstr(self->provider));
+
+
+SV *
+probes(self)
+        Devel::DTrace::Provider self
+
+        CODE:
+        RETVAL = newRV_inc((SV *)self->probes);
 
         OUTPUT:
         RETVAL
@@ -137,6 +181,16 @@ Devel::DTrace::Probe self
         usdt_fire_probe(self->probe, argc, argv);
 
         RETVAL = 1; /* XXX */
+
+        OUTPUT:
+        RETVAL
+
+int
+is_enabled(self)
+Devel::DTrace::Probe self
+
+        CODE:
+        RETVAL = usdt_is_enabled(self->probe);
 
         OUTPUT:
         RETVAL
