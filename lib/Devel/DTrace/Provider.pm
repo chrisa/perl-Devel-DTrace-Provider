@@ -3,7 +3,7 @@ package Devel::DTrace::Provider;
 use 5.008;
 use strict;
 use warnings;
-
+use vars qw/ $DTRACE_AVAILABLE /;
 
 BEGIN {
 	our $VERSION = '1.00';
@@ -12,7 +12,7 @@ BEGIN {
 		XSLoader::load('Devel::DTrace::Provider', $VERSION);
 	#};
 
-	my $DTRACE_AVAILABLE = 1;
+	$DTRACE_AVAILABLE = 1;
 	if ($@ && $@ =~ /Can't locate loadable object/) {
 		# No object - assume it wasn't built, and we should noop everything. 
 		$DTRACE_AVAILABLE = 0;
@@ -175,12 +175,3 @@ This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
 
 =cut
-
-
-
-
-
-
-
-
-
