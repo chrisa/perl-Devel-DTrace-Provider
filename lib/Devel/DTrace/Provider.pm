@@ -8,10 +8,10 @@ use vars qw/ $DTRACE_AVAILABLE /;
 BEGIN {
 	our $VERSION = '1.00';
 	require XSLoader;
-	#eval {
-		XSLoader::load('Devel::DTrace::Provider', $VERSION);
-	#};
-
+	eval {
+            XSLoader::load('Devel::DTrace::Provider', $VERSION);
+	};
+        
 	$DTRACE_AVAILABLE = 1;
 	if ($@ && $@ =~ /Can't locate loadable object/) {
 		# No object - assume it wasn't built, and we should noop everything. 

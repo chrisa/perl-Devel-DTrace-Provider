@@ -1,6 +1,10 @@
 use ExtUtils::MakeMaker;
 use Config;
 
+# Try to work out if DTrace is available.
+my $dtrace = 0;
+$dtrace = 1 if -f '/usr/include/sys/dtrace.h';
+
 # We need to know the architecture of the Perl binary we'll link with.
 # There's nothing that directly in %Config, as support for 64 bit
 # integers in Perl doesn't necessarily indicate an amd64 build. 
@@ -15,7 +19,8 @@ elsif ($cpp =~ /__x86_64__/) {
     $arch = 'x86_64';
 }
 else {
-    die "Don't know which ARCH value to use for: $Config{archname}";
+    die "Don't know which ARCH value to use for: $Config{archname}"
+         if $dtrace;
 }
 
 # Extract the appropriate compiler from Perl - we should use the same
@@ -24,14 +29,24 @@ else {
 my $cc = $Config{cc};
 
 # Add a section to the Makefile to build libusdt as a dependency of
-# the Perl extension.
+# the Perl extension, if DTrace appears to be available.
 #
 sub MY::postamble {
-    return <<"MAKE_FRAG";
+    if ($dtrace) {
+        return <<"MAKE_FRAG";
 \$(MYEXTLIB): libusdt/Makefile
 	cd libusdt && CC=$cc ARCH=$arch \$(MAKE) all
 
 MAKE_FRAG
+
+    }
+    else {
+        return <<"MAKE_FRAG";
+\$(MYEXTLIB): libusdt/Makefile
+	\$(NOECHO) \$(NOOP)
+
+MAKE_FRAG
+    }
 }
 
 WriteMakefile(
@@ -41,4 +56,8 @@ WriteMakefile(
     AUTHOR        => 'Chris Andrews <chris@nodnol.org>',
     INC           => '-Ilibusdt',
     MYEXTLIB      => 'libusdt/libusdt.a',
+    PREREQ_PM     => {
+        'Sub::Exporter' => 0
+    },
+    ($dtrace ? () : (NEEDS_LINKING => 0, SKIP => ['dynamic'])),
 );

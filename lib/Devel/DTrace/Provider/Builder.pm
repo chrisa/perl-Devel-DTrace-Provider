@@ -40,7 +40,9 @@ use Devel::DTrace::Provider;
     sub build_provider {
         sub ($$) {
             $provider_name = shift;
-            my $provider = Devel::DTrace::Provider->new($provider_name, 'perl');
+            my $provider;
+            $provider = Devel::DTrace::Provider->new($provider_name, 'perl')
+                 if Devel::DTrace::Provider::DTRACE_AVAILABLE();
 
             $providers->{$caller}->{$provider_name} = {
                 args => {},

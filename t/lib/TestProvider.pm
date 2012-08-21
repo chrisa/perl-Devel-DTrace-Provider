@@ -7,3 +7,5 @@ provider 'provider1' => as {
     probe 'probe1', 'string';
     probe 'probe2', 'integer';
 };
+
+1;

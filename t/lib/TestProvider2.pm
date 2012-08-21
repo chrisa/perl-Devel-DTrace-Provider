@@ -12,3 +12,5 @@ provider 'provider2' => as {
     probe 'probe12', 'string';
     probe 'probe22', 'integer';
 };
+
+1;
