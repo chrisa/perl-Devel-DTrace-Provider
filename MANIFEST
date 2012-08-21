@@ -3,6 +3,7 @@ lib/Devel/DTrace/Provider.pm
 lib/Devel/DTrace/Provider/Builder.pm
 libusdt/LICENCE
 libusdt/README.md
+libusdt/Makefile
 libusdt/test.pl
 libusdt/test_usdt.c
 libusdt/usdt.c
