@@ -6,7 +6,7 @@ use warnings;
 use vars qw/ $DTRACE_AVAILABLE /;
 
 BEGIN {
-	our $VERSION = '1.00';
+	our $VERSION = '1.01';
 	require XSLoader;
 	eval {
             XSLoader::load('Devel::DTrace::Provider', $VERSION);

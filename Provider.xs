@@ -17,6 +17,7 @@ typedef usdt_probedef_t* Devel__DTrace__Probe;
 char **
 XS_unpack_charPtrPtr (SV *arg)
 {
+        SV **elem;
         char **ret;
         AV *av;
         I32 i;
@@ -29,7 +30,7 @@ XS_unpack_charPtrPtr (SV *arg)
         ret = (char **)malloc ((av_len(av) + 1) * sizeof(char *));
 
         for (i = 0; i <= av_len (av); i++) {
-                SV **elem = av_fetch (av, i, 0);
+                elem = av_fetch (av, i, 0);
                 if (!elem || !*elem) {
                         Perl_croak (aTHX_ "undefined element in arg types array?");
                 }
@@ -155,14 +156,14 @@ Devel::DTrace::Probe self
 
         PREINIT:
 	void *argv[USDT_ARG_MAX];
-        size_t argc = 0;
+        size_t i, argc = 0;
 
 	CODE:
 	argc = items - 1;
 	if (argc != self->argc)
 	  Perl_croak(aTHX_ "Probe takes %d arguments, %d provided", self->argc, argc);
 
-  	for (size_t i = 0; i < self->argc; i++) {
+  	for (i = 0; i < self->argc; i++) {
 	  switch (self->types[i]) {
 	  case USDT_ARGTYPE_STRING:
 	    if (SvPOK(ST(i + 1)))
