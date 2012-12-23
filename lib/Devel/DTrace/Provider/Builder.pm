@@ -60,13 +60,6 @@ use Devel::DTrace::Provider;
 
             $provider->enable
                  if Devel::DTrace::Provider::DTRACE_AVAILABLE();
-
-            #my $probes = {};
-            #
-            #$probes = $provider->enable
-            #     if Devel::DTrace::Provider::DTRACE_AVAILABLE();
-
-            #return $probes;
         }
     }
 
