@@ -1,8 +1,8 @@
 package Devel::DTrace::Provider::Builder;
 use strict;
 use warnings;
-use Data::Dumper;
 
+use Sub::Install qw/ install_sub /;
 use Sub::Exporter -setup => {
     exports => [
         qw/ as /,
@@ -86,15 +86,36 @@ use Devel::DTrace::Provider;
 sub export_probe_functions {
     my ($package, $provider, $provider_name, $probe_name) = @_;
 
-    my ($sub_provider_name, $sub_probe_name) = ($provider_name, $probe_name);
-    $sub_provider_name =~ s/-/_/g;
-    $sub_probe_name =~ s/-/_/g;
+    my $probe = probe_function($provider, $probe_name);
+    my $isenabled = probe_enabled_function($provider, $probe_name);
 
-    no strict 'refs';
-    *{"${package}::${sub_probe_name}"} = probe_function($provider, $probe_name);
-    *{"${package}::${sub_probe_name}_enabled"} = probe_enabled_function($provider, $probe_name);
-    *{"${package}::${sub_provider_name}_${sub_probe_name}"} = probe_function($provider, $probe_name);
-    *{"${package}::${sub_provider_name}_${sub_probe_name}_enabled"} = probe_enabled_function($provider, $probe_name);
+    $provider_name =~ tr/-/_/;
+    $probe_name =~ tr/-/_/;
+
+    my $enabled_name = $probe_name . '_enabled';
+    my $provider_probe_name = $provider_name . '_' .$probe_name;
+    my $provider_enabled_name = $provider_probe_name . '_enabled';
+
+    install_sub({
+        code => $probe,
+        into => $package,
+        as => $probe_name
+    });
+    install_sub({
+        code => $isenabled,
+        into => $package,
+        as => $enabled_name
+    });
+    install_sub({
+        code => $probe,
+        into => $package,
+        as => $provider_probe_name
+    });
+    install_sub({
+        code => $isenabled,
+        into => $package,
+        as => $provider_enabled_name
+    });
 }
 
 sub probe_function {

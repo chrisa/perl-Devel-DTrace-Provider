@@ -57,6 +57,7 @@ WriteMakefile(
     INC           => '-Ilibusdt',
     MYEXTLIB      => 'libusdt/libusdt.a',
     PREREQ_PM     => {
+        'Sub::Install' => 0,
         'Sub::Exporter' => 0,
         'JSON' => 0
     },
