@@ -9,7 +9,8 @@
 typedef enum {
         none = 0,
         integer,
-        string
+        string,
+        json
 } perl_argtype_t;
 
 STATIC MGVTBL probe_vtbl = { 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -93,6 +94,75 @@ load_magic(SV *obj, const MGVTBL *vtbl)
         return NULL;
 }
 
+static void *
+integer_argument(SV *obj)
+{
+        long ret;
+
+        if (SvIOK(obj))
+                ret = SvIV(obj);
+        else
+                Perl_croak(aTHX_ "Argument type mismatch: should be integer");
+
+        return (void *) ret;
+}
+
+static void *
+string_argument(SV *obj)
+{
+        char *ret;
+
+        if (SvPOK(obj))
+                ret = SvPV_nolen(obj);
+        else
+                Perl_croak(aTHX_ "Argument type mismatch: should be string");
+
+        return (void *) ret;
+}
+
+static void *
+json_argument(SV *obj)
+{
+        int count;
+        SV *json;
+        char *ret = NULL;
+
+        dSP;
+
+	ENTER;
+        SAVETMPS;
+
+        PUSHMARK(SP);
+        XPUSHs(obj);
+        PUTBACK;
+
+        count = call_pv("JSON::to_json", G_EVAL | G_SCALAR);
+
+        SPAGAIN;
+
+        if (SvTRUE(ERRSV)) {
+                (void )POPs;
+                Perl_croak(aTHX_ "Error JSON serializing: %s\n", SvPV_nolen(ERRSV));
+        }
+        else {
+                json = POPs;
+                if (SvPOK(json)) {
+                        ret = (char *)safemalloc( SvCUR(json) + 1 );
+
+                        if (ret == NULL)
+                                Perl_croak(aTHX_ "json_object: unable to malloc char*");
+                        else
+                                strcpy(ret, SvPV_nolen(json));
+                }
+        }
+
+        PUTBACK;
+        FREETMPS;
+        LEAVE;
+
+        return (void *)ret;
+}
+
 MODULE = Devel::DTrace::Provider               PACKAGE = Devel::DTrace::Provider
 
 PROTOTYPES: DISABLE
@@ -152,6 +222,11 @@ add_probe(self, name, function, perl_types)
                 else if (strncmp("string", perl_types[i], 6) == 0) {
                         dtrace_types[i] = "char *";
                         types[i] = string;
+                        argc++;
+                }
+                else if (strncmp("json", perl_types[i], 4) == 0) {
+                        dtrace_types[i] = "char *";
+                        types[i] = json;
                         argc++;
                 }
                 else {
@@ -268,21 +343,30 @@ Devel::DTrace::Probe self
                         argv[i] = NULL;
                         break;
                 case integer:
-                        if (SvIOK(ST(i + 1)))
-                                argv[i] = (void *)(SvIV(ST(i + 1)));
-                        else
-                                Perl_croak(aTHX_ "Argument type mismatch: %ld should be integer", i);
+                        argv[i] = integer_argument(ST(i + 1));
                         break;
                 case string:
-                        if (SvPOK(ST(i + 1)))
-                                argv[i] = (void *)(SvPV_nolen(ST(i + 1)));
-                        else
-                                Perl_croak(aTHX_ "Argument type mismatch: %ld should be string", i);
+                        argv[i] = string_argument(ST(i + 1));
+                        break;
+                case json:
+                        argv[i] = json_argument(ST(i + 1));
                         break;
                 }
 	}
 
         usdt_fire_probe(self->probe, argc, argv);
+
+        for (i = 0; i < self->argc; i++) {
+                switch (types[i]) {
+                case none:
+                case integer:
+                case string:
+                        break;
+                case json:
+                        free(argv[i]);
+                        break;
+                }
+        }
 
         RETVAL = 1; /* XXX */
 

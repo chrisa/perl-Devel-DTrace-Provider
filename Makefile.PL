@@ -57,7 +57,8 @@ WriteMakefile(
     INC           => '-Ilibusdt',
     MYEXTLIB      => 'libusdt/libusdt.a',
     PREREQ_PM     => {
-        'Sub::Exporter' => 0
+        'Sub::Exporter' => 0,
+        'JSON' => 0
     },
     ($dtrace ? () : (NEEDS_LINKING => 0, SKIP => ['dynamic'])),
 );

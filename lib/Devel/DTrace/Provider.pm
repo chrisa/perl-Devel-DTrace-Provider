@@ -5,6 +5,8 @@ use strict;
 use warnings;
 use vars qw/ $DTRACE_AVAILABLE /;
 
+use JSON;
+
 BEGIN {
 	our $VERSION = '1.03';
 	require XSLoader;
