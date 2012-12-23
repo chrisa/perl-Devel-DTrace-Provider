@@ -12,7 +12,7 @@ $dtrace = 1 if -f '/usr/include/sys/dtrace.h';
 #
 my $cpp = $Config{cppsymbols};
 my $arch;
-if ($cpp =~ /__i386/) { # match __i386__ and __i386m for gcc and Sun CC.
+if ($cpp =~ /__i386/) { # match __i386__ and __i386 for gcc and Sun CC.
     $arch = 'i386';
 }
 elsif ($cpp =~ /__x86_64__/) {

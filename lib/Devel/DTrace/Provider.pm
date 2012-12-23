@@ -6,15 +6,15 @@ use warnings;
 use vars qw/ $DTRACE_AVAILABLE /;
 
 BEGIN {
-	our $VERSION = '1.01';
+	our $VERSION = '1.02';
 	require XSLoader;
 	eval {
             XSLoader::load('Devel::DTrace::Provider', $VERSION);
 	};
-        
+
 	$DTRACE_AVAILABLE = 1;
 	if ($@ && $@ =~ /Can't locate loadable object/) {
-		# No object - assume it wasn't built, and we should noop everything. 
+		# No object - assume it wasn't built, and we should noop everything.
 		$DTRACE_AVAILABLE = 0;
 	}
 
@@ -45,7 +45,7 @@ Devel::DTrace::Provider - Create DTrace providers for Perl programs.
   # Create a provider and fire a probe:
 
   use Devel::DTrace::Provider;
-    
+
   my $provider = Devel::DTrace::Provider->new('provider1', 'perl');
   my $probe = $provider->add_probe('probe1', 'function', ['string']);
   $provider->enable;
@@ -61,7 +61,7 @@ Devel::DTrace::Provider - Create DTrace providers for Perl programs.
 =head1 DESCRIPTION
 
 This module lets you create DTrace providers for your Perl programs,
-from Perl - no further native code is required. 
+from Perl - no further native code is required.
 
 When you create a provider and call its C<enable> method, the following
 happens:
@@ -76,7 +76,7 @@ be fired from Perl code.
 Your program does not need to run as root to create providers.
 
 Providers created by this module should survive fork(), and become
-visible from both parent and child processes separately. 
+visible from both parent and child processes separately.
 
 =head2 Using Perl providers
 
@@ -115,8 +115,8 @@ action:
 for an integer argument, and:
 
   $ sudo /usr/sbin/dtrace -n 'myprovider*:::myprobe{ trace(copyinstr(arg0)); }'
-  
-for a string argument. 
+
+for a string argument.
 
 There are numerous other actions and predicates - see the DTrace guide
 for full details:
@@ -129,7 +129,7 @@ for full details:
 
 =head2 Platform support
 
-This module is supported only on platforms where libusdt is available. 
+This module is supported only on platforms where libusdt is available.
 
 See: https://github.com/chrisa/libusdt
 
@@ -139,15 +139,15 @@ See: https://github.com/chrisa/libusdt
 
 Create a provider. Takes the name of the provider, and the name of the
 module it should appear to be in to DTrace (in native code this would
-be the library, kernel module, executable etc). 
+be the library, kernel module, executable etc).
 
-Returns an empty provider object. 
+Returns an empty provider object.
 
 =head2 probe($probe_name, @argument_types...)
 
 Adds a probe to the provider, named $probe_name. Arguments are set up
 with the types specified. Supported types are 'string' (char *) and
-'integer' (int). A maximum of 32 arguments is supported. 
+'integer' (int). A maximum of 32 arguments is supported.
 
 Returns a probe object.
 
@@ -169,7 +169,7 @@ Chris Andrews <chris@nodnol.org>
 
 =head1 LICENCE AND COPYRIGHT
 
-Copyright (C) 2008-2012, Chris Andrews <chris@nodnol.org>. All rights reserved. 
+Copyright (C) 2008-2012, Chris Andrews <chris@nodnol.org>. All rights reserved.
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

@@ -6,6 +6,14 @@
 
 #include <usdt.h>
 
+typedef enum {
+        none = 0,
+        integer,
+        string
+} perl_argtype_t;
+
+STATIC MGVTBL probeargs_vtbl = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
 struct perl_dtrace_provider {
         usdt_provider_t *provider;
         HV *probes;
@@ -75,23 +83,36 @@ add_probe(self, name, function, perl_types)
         INIT:
         int i;
         int argc = 0;
-        const char *types[USDT_ARG_MAX];
+        const char *dtrace_types[USDT_ARG_MAX];
+        perl_argtype_t *types;
+        MAGIC *mg;
 
         CODE:
+        types = malloc(USDT_ARG_MAX * sizeof(perl_argtype_t));
+
         for (i = 0; i < USDT_ARG_MAX; i++) {
                 if (perl_types[i] == NULL)
                         break;
-                if (strcmp("integer", perl_types[i]) == 0) {
-                        types[i] = "int";
+
+                if (strncmp("integer", perl_types[i], 7) == 0) {
+                        dtrace_types[i] = "int";
+                        types[i] = integer;
                         argc++;
-                } else if (strcmp("string", perl_types[i]) == 0) {
-                        types[i] = "char *";
+                }
+                else if (strncmp("string", perl_types[i], 6) == 0) {
+                        dtrace_types[i] = "char *";
+                        types[i] = string;
                         argc++;
-                } else {
-                        types[i] = NULL;
+                }
+                else {
+                        dtrace_types[i] = NULL;
+                        types[i] = none;
                 }
         }
-        if ((RETVAL = usdt_create_probe(function, name, argc, types)) == NULL)
+        free(perl_types);
+
+        RETVAL = usdt_create_probe(function, name, argc, dtrace_types);
+        if (RETVAL == NULL)
                 Perl_croak(aTHX_ "create probe failed");
 
         if ((usdt_provider_add_probe(self->provider, RETVAL) < 0))
@@ -99,6 +120,8 @@ add_probe(self, name, function, perl_types)
 
         ST(0) = sv_newmortal();
         sv_setref_pv(ST(0), "Devel::DTrace::Probe", (void*)RETVAL);
+        sv_magicext(SvRV(ST(0)), Nullsv, PERL_MAGIC_ext, &probeargs_vtbl,
+                    (const char *) types, 0);
 
         (void) hv_store(self->probes, name, strlen(name), SvREFCNT_inc((SV *)ST(0)), 0);
 
@@ -157,28 +180,41 @@ Devel::DTrace::Probe self
         PREINIT:
 	void *argv[USDT_ARG_MAX];
         size_t i, argc = 0;
+        MAGIC *mg;
+        perl_argtype_t *types = NULL;
 
 	CODE:
 	argc = items - 1;
 	if (argc != self->argc)
-	  Perl_croak(aTHX_ "Probe takes %d arguments, %d provided", self->argc, argc);
+                Perl_croak(aTHX_ "Probe takes %ld arguments, %ld provided",
+                           self->argc, argc);
+
+        for (mg = SvMAGIC(SvRV(ST(0))); mg; mg = mg->mg_moremagic)
+                if (mg->mg_type == PERL_MAGIC_ext && mg->mg_virtual == &probeargs_vtbl)
+                        types = (perl_argtype_t *)mg->mg_ptr;
+        if (types == NULL)
+                Perl_croak(aTHX_ "Missing probe magic?");
 
   	for (i = 0; i < self->argc; i++) {
-	  switch (self->types[i]) {
-	  case USDT_ARGTYPE_STRING:
-	    if (SvPOK(ST(i + 1)))
-	      argv[i] = (void *)(SvPV_nolen(ST(i + 1)));
-	    else
-	      Perl_croak(aTHX_ "Argument type mismatch: %d should be string", i);
-	    break;
-	  case USDT_ARGTYPE_INTEGER:
-	    if (SvIOK(ST(i + 1)))
-	      argv[i] = (void *)(SvIV(ST(i + 1)));
-	    else
-	      Perl_croak(aTHX_ "Argument type mismatch: %d should be integer", i);
-	    break;
-	  }
-	}
+                switch (types[i]) {
+                case none:
+                        argv[i] = NULL;
+                        break;
+                case integer:
+                        if (SvIOK(ST(i + 1)))
+                                argv[i] = (void *)(SvIV(ST(i + 1)));
+                        else
+                                Perl_croak(aTHX_ "Argument type mismatch: %ld should be integer", i);
+                        break;
+                case string:
+                        if (SvPOK(ST(i + 1)))
+                                argv[i] = (void *)(SvPV_nolen(ST(i + 1)));
+                        else
+                                Perl_croak(aTHX_ "Argument type mismatch: %ld should be string", i);
+                        break;
+                }
+	};
+
         usdt_fire_probe(self->probe, argc, argv);
 
         RETVAL = 1; /* XXX */

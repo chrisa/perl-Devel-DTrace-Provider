@@ -11,7 +11,7 @@ use Sub::Exporter -setup => {
         import => \&build_import
     ],
     groups  => {
-        default => [ 
+        default => [
             qw/ as probe provider import /
         ],
     },
@@ -51,17 +51,22 @@ use Devel::DTrace::Provider;
 
             $coderef->();
 
-            for my $name (keys %{$providers->{$caller}->{$provider_name}->{args}}) {
-                my $args = $providers->{$caller}->{$provider_name}->{args}->{$name};
-                $provider->add_probe($name, 'func', $args)
+            for my $probe_name (keys %{$providers->{$caller}->{$provider_name}->{args}}) {
+                my $args = $providers->{$caller}->{$provider_name}->{args}->{$probe_name};
+                $provider->add_probe($probe_name, 'func', $args)
                      if Devel::DTrace::Provider::DTRACE_AVAILABLE();
-
-                no strict 'refs';
-                *{"${caller}::${name}"} = probe_function($provider, $name);
-                *{"${caller}::${name}_enabled"} = probe_enabled_function($provider, $name);
+                export_probe_functions($caller, $provider, $provider_name, $probe_name);
             }
+
             $provider->enable
                  if Devel::DTrace::Provider::DTRACE_AVAILABLE();
+
+            #my $probes = {};
+            #
+            #$probes = $provider->enable
+            #     if Devel::DTrace::Provider::DTRACE_AVAILABLE();
+
+            #return $probes;
         }
     }
 
@@ -77,17 +82,29 @@ use Devel::DTrace::Provider;
             my $package = caller(0);
             for my $provider_name (keys %{$providers->{$caller}}) {
                 my $provider = $providers->{$caller}->{$provider_name}->{provider};
-                for my $name (keys %{$providers->{$caller}->{$provider_name}->{args}}) {
-                    no strict 'refs';
-                    *{"${package}::${name}"} = probe_function($provider, $name);
-                    *{"${package}::${name}_enabled"} = probe_enabled_function($provider, $name);
+                for my $probe_name (keys %{$providers->{$caller}->{$provider_name}->{args}}) {
+                    export_probe_functions($package, $provider, $provider_name, $probe_name);
                 }
             }
         }
     }
 }
 
-sub probe_function { 
+sub export_probe_functions {
+    my ($package, $provider, $provider_name, $probe_name) = @_;
+
+    my ($sub_provider_name, $sub_probe_name) = ($provider_name, $probe_name);
+    $sub_provider_name =~ s/-/_/g;
+    $sub_probe_name =~ s/-/_/g;
+
+    no strict 'refs';
+    *{"${package}::${sub_probe_name}"} = probe_function($provider, $probe_name);
+    *{"${package}::${sub_probe_name}_enabled"} = probe_enabled_function($provider, $probe_name);
+    *{"${package}::${sub_provider_name}_${sub_probe_name}"} = probe_function($provider, $probe_name);
+    *{"${package}::${sub_provider_name}_${sub_probe_name}_enabled"} = probe_enabled_function($provider, $probe_name);
+}
+
+sub probe_function {
     my ($provider, $probe_name) = @_;
 
     if (Devel::DTrace::Provider::DTRACE_AVAILABLE()) {
@@ -99,7 +116,7 @@ sub probe_function {
     }
 }
 
-sub probe_enabled_function { 
+sub probe_enabled_function {
     my ($provider, $probe_name) = @_;
 
     if (Devel::DTrace::Provider::DTRACE_AVAILABLE()) {
@@ -117,7 +134,7 @@ __END__
 
 =pod
 
-=head1 NAME 
+=head1 NAME
 
 Devel::DTrace::Provider::Builder - declaratively create DTrace USDT providers
 
@@ -183,7 +200,7 @@ is not supported: the probes will be optimised away entirely -- see
 =head2 Declare the providers
 
 You can declare any number of providers in a single package: they will
-all be enabled and their probes imported when the package is used. 
+all be enabled and their probes imported when the package is used.
 
 The general syntax of a provider declaration is:
 
@@ -193,7 +210,7 @@ The general syntax of a provider declaration is:
   };
 
 The supported argument types are 'integer' and 'string', corresponding
-to native int and char * probe arguments. 
+to native int and char * probe arguments.
 
 =head2 Use the provider
 
@@ -215,10 +232,10 @@ The coderef is only called if the probe is enabled by DTrace, so you
 can do whatever work is necessary to gather probe arguments and know
 that code will not run when DTrace is not active:
 
-  probe { 
+  probe {
     my @args = gather_expensive_args();
     shift->fire(@args);
-  }; 
+  };
 
 =head1 DISABLED PROBE EFFECT
 
@@ -236,7 +253,7 @@ Two features allow you to reduce the disabled probe effect:
 
 This applies to code on DTrace enabled systems: the coderef is
 only executed if the probe is enabled, so you can put code there which
-only runs when tracing is active. 
+only runs when tracing is active.
 
 =head2 *_enabled functions
 
