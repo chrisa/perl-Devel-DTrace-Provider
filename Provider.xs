@@ -12,20 +12,17 @@ typedef enum {
         string
 } perl_argtype_t;
 
-STATIC MGVTBL probeargs_vtbl = { 0, 0, 0, 0, 0, 0, 0, 0 };
+STATIC MGVTBL probe_vtbl = { 0, 0, 0, 0, 0, 0, 0, 0 };
+STATIC MGVTBL provider_vtbl = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-struct perl_dtrace_provider {
-        usdt_provider_t *provider;
-        HV *probes;
-};
-
-typedef struct perl_dtrace_provider* Devel__DTrace__Provider;
+typedef usdt_provider_t* Devel__DTrace__Provider;
 typedef usdt_probedef_t* Devel__DTrace__Probe;
 
 /* Used by the INPUT typemap for char**.
  * Will convert a Perl AV* (containing strings) to a C char**.
  */
-char ** XS_unpack_charPtrPtr(SV* rv )
+static char **
+XS_unpack_charPtrPtr(SV* rv )
 {
 	AV *av;
 	SV **ssv;
@@ -74,12 +71,26 @@ char ** XS_unpack_charPtrPtr(SV* rv )
 	return( s );
 }
 
-void XS_release_charPtrPtr(char **s)
+static void
+XS_release_charPtrPtr(char **s)
 {
 	char **c;
 	for( c = s; *c != NULL; ++c )
 		safefree( *c );
 	safefree( s );
+}
+
+static MAGIC *
+load_magic(SV *obj, const MGVTBL *vtbl)
+{
+        MAGIC *mg;
+
+        for (mg = SvMAGIC(obj); mg; mg = mg->mg_moremagic)
+                if (mg->mg_type == PERL_MAGIC_ext && mg->mg_virtual == vtbl)
+                        return mg;
+
+        Perl_croak(aTHX_ "Missing magic?");
+        return NULL;
 }
 
 MODULE = Devel::DTrace::Provider               PACKAGE = Devel::DTrace::Provider
@@ -92,19 +103,21 @@ new(package, name, module)
         char *name
         char *module;
 
+        INIT:
+        SV *probes;
+
         CODE:
-        RETVAL = malloc(sizeof(struct perl_dtrace_provider *));
+        RETVAL = usdt_create_provider(name, module);
         if (RETVAL == NULL)
-                Perl_croak(aTHX_ "Failed to allocate memory for provider: %s", strerror(errno));
+                Perl_croak(aTHX_ "Failed to allocate memory for provider: %s",
+                           strerror(errno));
 
-        RETVAL->provider = usdt_create_provider(name, module);
-        if (RETVAL->provider == NULL)
-                Perl_croak(aTHX_ "Failed to allocate memory for provider: %s", strerror(errno));
+        ST(0) = sv_newmortal();
+        sv_setref_pv(ST(0), "Devel::DTrace::Provider", (void*)RETVAL);
 
-        RETVAL->probes = newHV();
-
-        OUTPUT:
-        RETVAL
+        probes = (SV *)newHV();
+        sv_magicext(SvRV(ST(0)), probes, PERL_MAGIC_ext,&provider_vtbl,
+                    NULL, 0);
 
 Devel::DTrace::Probe
 add_probe(self, name, function, perl_types)
@@ -119,8 +132,12 @@ add_probe(self, name, function, perl_types)
         const char *dtrace_types[USDT_ARG_MAX];
         perl_argtype_t *types;
         MAGIC *mg;
+        HV *probes;
 
         CODE:
+        mg = load_magic(SvRV(ST(0)), &provider_vtbl);
+        probes = (HV *)mg->mg_obj;
+
         types = malloc(USDT_ARG_MAX * sizeof(perl_argtype_t));
 
         for (i = 0; i < USDT_ARG_MAX; i++) {
@@ -148,37 +165,51 @@ add_probe(self, name, function, perl_types)
         if (RETVAL == NULL)
                 Perl_croak(aTHX_ "create probe failed");
 
-        if ((usdt_provider_add_probe(self->provider, RETVAL) < 0))
-                Perl_croak(aTHX_ "add probe: %s", usdt_errstr(self->provider));
+        if ((usdt_provider_add_probe(self, RETVAL) < 0))
+                Perl_croak(aTHX_ "add probe: %s", usdt_errstr(self));
 
         ST(0) = sv_newmortal();
         sv_setref_pv(ST(0), "Devel::DTrace::Probe", (void*)RETVAL);
-        sv_magicext(SvRV(ST(0)), Nullsv, PERL_MAGIC_ext, &probeargs_vtbl,
+        sv_magicext(SvRV(ST(0)), Nullsv, PERL_MAGIC_ext, &probe_vtbl,
                     (const char *) types, 0);
 
-        (void) hv_store(self->probes, name, strlen(name), SvREFCNT_inc((SV *)ST(0)), 0);
+        (void) hv_store(probes, name, strlen(name), SvREFCNT_inc((SV *)ST(0)), 0);
 
 void
 remove_probe(self, probe)
         Devel::DTrace::Provider self
         Devel::DTrace::Probe probe;
 
-        CODE:
-        (void) hv_delete(self->probes, probe->name, strlen(probe->name), G_DISCARD);
+        INIT:
+        MAGIC *mg;
+        HV *probes;
 
-        if (usdt_provider_remove_probe(self->provider, probe) < 0)
-                Perl_croak(aTHX_ "%s", usdt_errstr(self->provider));
+        CODE:
+        mg = load_magic(SvRV(ST(0)), &provider_vtbl);
+        probes = (HV *)mg->mg_obj;
+
+        (void) hv_delete(probes, probe->name, strlen(probe->name), G_DISCARD);
+
+        if (usdt_provider_remove_probe(self, probe) < 0)
+                Perl_croak(aTHX_ "%s", usdt_errstr(self));
 
 
 SV *
 enable(self)
         Devel::DTrace::Provider self
 
-        CODE:
-        if (usdt_provider_enable(self->provider) < 0)
-                Perl_croak(aTHX_ "%s", usdt_errstr(self->provider));
+        INIT:
+        MAGIC *mg;
+        HV *probes;
 
-        RETVAL = newRV_inc((SV *)self->probes);
+        CODE:
+        mg = load_magic(SvRV(ST(0)), &provider_vtbl);
+        probes = (HV *)mg->mg_obj;
+
+        if (usdt_provider_enable(self) < 0)
+                Perl_croak(aTHX_ "%s", usdt_errstr(self));
+
+        RETVAL = newRV_inc((SV *)probes);
 
         OUTPUT:
         RETVAL
@@ -188,16 +219,22 @@ disable(self)
         Devel::DTrace::Provider self
 
         CODE:
-        if (usdt_provider_disable(self->provider) < 0)
-                Perl_croak(aTHX_ "%s", usdt_errstr(self->provider));
-
+        if (usdt_provider_disable(self) < 0)
+                Perl_croak(aTHX_ "%s", usdt_errstr(self));
 
 SV *
 probes(self)
         Devel::DTrace::Provider self
 
+        INIT:
+        MAGIC *mg;
+        HV *probes;
+
         CODE:
-        RETVAL = newRV_inc((SV *)self->probes);
+        mg = load_magic(SvRV(ST(0)), &provider_vtbl);
+        probes = (HV *)mg->mg_obj;
+
+        RETVAL = newRV_inc((SV *)probes);
 
         OUTPUT:
         RETVAL
@@ -222,11 +259,8 @@ Devel::DTrace::Probe self
                 Perl_croak(aTHX_ "Probe takes %ld arguments, %ld provided",
                            self->argc, argc);
 
-        for (mg = SvMAGIC(SvRV(ST(0))); mg; mg = mg->mg_moremagic)
-                if (mg->mg_type == PERL_MAGIC_ext && mg->mg_virtual == &probeargs_vtbl)
-                        types = (perl_argtype_t *)mg->mg_ptr;
-        if (types == NULL)
-                Perl_croak(aTHX_ "Missing probe magic?");
+        mg = load_magic(SvRV(ST(0)), &probe_vtbl);
+        types = (perl_argtype_t *)mg->mg_ptr;
 
   	for (i = 0; i < self->argc; i++) {
                 switch (types[i]) {
@@ -246,7 +280,7 @@ Devel::DTrace::Probe self
                                 Perl_croak(aTHX_ "Argument type mismatch: %ld should be string", i);
                         break;
                 }
-	};
+	}
 
         usdt_fire_probe(self->probe, argc, argv);
 
