@@ -1,7 +1,7 @@
 *.o
-*.c
 *.bs
 
+Provider.c
 Makefile
 Makefile.old
 blib

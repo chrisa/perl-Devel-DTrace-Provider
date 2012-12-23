@@ -3,6 +3,7 @@
 #include "XSUB.h"
 
 #include "ppport.h"
+#include "Av_CharPtrPtr.h"
 
 #include <usdt.h>
 
@@ -18,68 +19,6 @@ STATIC MGVTBL provider_vtbl = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
 typedef usdt_provider_t* Devel__DTrace__Provider;
 typedef usdt_probedef_t* Devel__DTrace__Probe;
-
-/* Used by the INPUT typemap for char**.
- * Will convert a Perl AV* (containing strings) to a C char**.
- */
-static char **
-XS_unpack_charPtrPtr(SV* rv )
-{
-	AV *av;
-	SV **ssv;
-	char **s;
-	int avlen;
-	int x;
-
-	if( SvROK( rv ) && (SvTYPE(SvRV(rv)) == SVt_PVAV) )
-		av = (AV*)SvRV(rv);
-	else {
-		warn("XS_unpack_charPtrPtr: rv was not an AV ref");
-		return( (char**)NULL );
-	}
-
-	/* is it empty? */
-	avlen = av_len(av);
-	if( avlen < 0 ){
-		warn("XS_unpack_charPtrPtr: array was empty");
-		return( (char**)NULL );
-	}
-
-	/* av_len+2 == number of strings, plus 1 for an end-of-array sentinel.
-	 */
-	s = (char **)safemalloc( sizeof(char*) * (avlen + 2) );
-	if( s == NULL ){
-		warn("XS_unpack_charPtrPtr: unable to malloc char**");
-		return( (char**)NULL );
-	}
-	for( x = 0; x <= avlen; ++x ){
-		ssv = av_fetch( av, x, 0 );
-		if( ssv != NULL ){
-			if( SvPOK( *ssv ) ){
-				s[x] = (char *)safemalloc( SvCUR(*ssv) + 1 );
-				if( s[x] == NULL )
-					warn("XS_unpack_charPtrPtr: unable to malloc char*");
-				else
-					strcpy( s[x], SvPV( *ssv, PL_na ) );
-			}
-			else
-				warn("XS_unpack_charPtrPtr: array elem %d was not a string.", x );
-		}
-		else
-			s[x] = (char*)NULL;
-	}
-	s[x] = (char*)NULL; /* sentinel */
-	return( s );
-}
-
-static void
-XS_release_charPtrPtr(char **s)
-{
-	char **c;
-	for( c = s; *c != NULL; ++c )
-		safefree( *c );
-	safefree( s );
-}
 
 static MAGIC *
 load_magic(SV *obj, const MGVTBL *vtbl)
@@ -189,6 +128,13 @@ new(package, name, module)
         sv_magicext(SvRV(ST(0)), probes, PERL_MAGIC_ext,&provider_vtbl,
                     NULL, 0);
 
+void
+DESTROY (self)
+        Devel::DTrace::Provider self;
+CODE:
+        usdt_provider_disable(self);
+        usdt_provider_free(self);
+
 Devel::DTrace::Probe
 add_probe(self, name, function, perl_types)
         Devel::DTrace::Provider self
@@ -234,7 +180,7 @@ add_probe(self, name, function, perl_types)
                         types[i] = none;
                 }
         }
-        free(perl_types);
+        XS_release_charPtrPtr(perl_types);
 
         RETVAL = usdt_create_probe(function, name, argc, dtrace_types);
         if (RETVAL == NULL)
@@ -317,6 +263,12 @@ probes(self)
 MODULE = Devel::DTrace::Provider               PACKAGE = Devel::DTrace::Probe
 
 PROTOTYPES: DISABLE
+
+void
+DESTROY (self)
+        Devel::DTrace::Probe self;
+CODE:
+        usdt_probe_release(self);
 
 int
 fire(self, ...)

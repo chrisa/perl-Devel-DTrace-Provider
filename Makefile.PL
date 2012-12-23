@@ -56,6 +56,7 @@ WriteMakefile(
     AUTHOR        => 'Chris Andrews <chris@nodnol.org>',
     INC           => '-Ilibusdt',
     MYEXTLIB      => 'libusdt/libusdt.a',
+    OBJECT        => '$(O_FILES)',
     PREREQ_PM     => {
         'Sub::Install' => 0,
         'Sub::Exporter' => 0,
