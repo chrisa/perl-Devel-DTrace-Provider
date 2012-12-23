@@ -22,31 +22,64 @@ struct perl_dtrace_provider {
 typedef struct perl_dtrace_provider* Devel__DTrace__Provider;
 typedef usdt_probedef_t* Devel__DTrace__Probe;
 
-char **
-XS_unpack_charPtrPtr (SV *arg)
+/* Used by the INPUT typemap for char**.
+ * Will convert a Perl AV* (containing strings) to a C char**.
+ */
+char ** XS_unpack_charPtrPtr(SV* rv )
 {
-        SV **elem;
-        char **ret;
-        AV *av;
-        I32 i;
+	AV *av;
+	SV **ssv;
+	char **s;
+	int avlen;
+	int x;
 
-        if (!arg || !SvOK (arg) || !SvROK (arg) || (SvTYPE (SvRV (arg)) != SVt_PVAV)) {
-                Perl_croak (aTHX_ "array reference expected");
-        }
+	if( SvROK( rv ) && (SvTYPE(SvRV(rv)) == SVt_PVAV) )
+		av = (AV*)SvRV(rv);
+	else {
+		warn("XS_unpack_charPtrPtr: rv was not an AV ref");
+		return( (char**)NULL );
+	}
 
-        av = (AV *)SvRV (arg);
-        ret = (char **)malloc ((av_len(av) + 1) * sizeof(char *));
+	/* is it empty? */
+	avlen = av_len(av);
+	if( avlen < 0 ){
+		warn("XS_unpack_charPtrPtr: array was empty");
+		return( (char**)NULL );
+	}
 
-        for (i = 0; i <= av_len (av); i++) {
-                elem = av_fetch (av, i, 0);
-                if (!elem || !*elem) {
-                        Perl_croak (aTHX_ "undefined element in arg types array?");
-                }
-                ret[i] = SvPV_nolen (*elem);
-        }
+	/* av_len+2 == number of strings, plus 1 for an end-of-array sentinel.
+	 */
+	s = (char **)safemalloc( sizeof(char*) * (avlen + 2) );
+	if( s == NULL ){
+		warn("XS_unpack_charPtrPtr: unable to malloc char**");
+		return( (char**)NULL );
+	}
+	for( x = 0; x <= avlen; ++x ){
+		ssv = av_fetch( av, x, 0 );
+		if( ssv != NULL ){
+			if( SvPOK( *ssv ) ){
+				s[x] = (char *)safemalloc( SvCUR(*ssv) + 1 );
+				if( s[x] == NULL )
+					warn("XS_unpack_charPtrPtr: unable to malloc char*");
+				else
+					strcpy( s[x], SvPV( *ssv, PL_na ) );
+			}
+			else
+				warn("XS_unpack_charPtrPtr: array elem %d was not a string.", x );
+		}
+		else
+			s[x] = (char*)NULL;
+	}
+	s[x] = (char*)NULL; /* sentinel */
+	return( s );
+}
 
-        ret[av_len (av) + 1] = NULL;
-        return ret;
+void XS_release_charPtrPtr(char **s)
+{
+	char **c;
+	for( c = s; *c != NULL; ++c )
+		safefree( *c );
+	safefree( s );
 }
 
 MODULE = Devel::DTrace::Provider               PACKAGE = Devel::DTrace::Provider
@@ -91,7 +124,7 @@ add_probe(self, name, function, perl_types)
         types = malloc(USDT_ARG_MAX * sizeof(perl_argtype_t));
 
         for (i = 0; i < USDT_ARG_MAX; i++) {
-                if (perl_types[i] == NULL)
+                if (perl_types == NULL || perl_types[i] == NULL)
                         break;
 
                 if (strncmp("integer", perl_types[i], 7) == 0) {
