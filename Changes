@@ -1,5 +1,17 @@
 Revision history for Perl extension Devel::DTrace::Provider.
 
+1.03  Sun 23 Dec 14:47:10 2012
+        Fix XS_unpack_charPtrPtr routine.
+        Update libusdt, stop using USDT_ARGTYPE_*
+
+1.02  Not released
+
+1.01  Wed Sep 05 18:30:49 2012
+        gcc-4.2 fix.
+
+1.00  Tue Aug 21 21:03:35 2012
+        Rewrite as a thin XS layer over libusdt.
+
 0.02  Mon Oct 13 10:49:30 2008
         Formalise argument types, and check at fire time. Improves
 	conversion of probe arguments to C strings and ints. 
