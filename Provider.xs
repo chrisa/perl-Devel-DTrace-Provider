@@ -131,7 +131,13 @@ new(package, name, module)
 void
 DESTROY (self)
         Devel::DTrace::Provider self;
-CODE:
+
+        INIT:
+        MAGIC *mg;
+
+        CODE:
+        mg = load_magic(SvRV(ST(0)), &provider_vtbl);
+        SvREFCNT_dec(mg->mg_obj);
         usdt_provider_disable(self);
         usdt_provider_free(self);
 
@@ -154,7 +160,7 @@ add_probe(self, name, function, perl_types)
         mg = load_magic(SvRV(ST(0)), &provider_vtbl);
         probes = (HV *)mg->mg_obj;
 
-        types = malloc(USDT_ARG_MAX * sizeof(perl_argtype_t));
+        types = safemalloc(USDT_ARG_MAX * sizeof(perl_argtype_t));
 
         for (i = 0; i < USDT_ARG_MAX; i++) {
                 if (perl_types == NULL || perl_types[i] == NULL)
@@ -268,7 +274,13 @@ PROTOTYPES: DISABLE
 void
 DESTROY (self)
         Devel::DTrace::Probe self;
-CODE:
+
+        INIT:
+        MAGIC *mg;
+
+        CODE:
+        mg = load_magic(SvRV(ST(0)), &probe_vtbl);
+        safefree(mg->mg_ptr);
         usdt_probe_release(self);
 
 int
@@ -316,7 +328,7 @@ Devel::DTrace::Probe self
                 case string:
                         break;
                 case json:
-                        free(argv[i]);
+                        safefree(argv[i]);
                         break;
                 }
         }
