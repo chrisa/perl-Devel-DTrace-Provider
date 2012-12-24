@@ -180,7 +180,8 @@ add_probe(self, name, function, perl_types)
                         types[i] = none;
                 }
         }
-        XS_release_charPtrPtr(perl_types);
+        if (perl_types != NULL)
+                XS_release_charPtrPtr(perl_types);
 
         RETVAL = usdt_create_probe(function, name, argc, dtrace_types);
         if (RETVAL == NULL)
