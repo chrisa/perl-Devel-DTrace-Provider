@@ -1,5 +1,9 @@
 Revision history for Perl extension Devel::DTrace::Provider.
 
+1.11  Mon 24 Dec 21:31:44 2012
+        Handle empty list of argument types.
+        Leak less, by releasing probes when provider is destroyed.
+
 1.10  Sun 23 Dec 20:05:06 2012
         Add support for JSON-serialised hash and array objects
         Free memory allocated by the extension.

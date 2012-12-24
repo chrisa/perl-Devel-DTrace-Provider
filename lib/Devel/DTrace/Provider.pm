@@ -8,7 +8,7 @@ use vars qw/ $DTRACE_AVAILABLE /;
 use JSON;
 
 BEGIN {
-	our $VERSION = '1.10';
+	our $VERSION = '1.11';
 	require XSLoader;
 	eval {
             XSLoader::load('Devel::DTrace::Provider', $VERSION);
